@@ -1,3 +1,3 @@
-module github.com/YOUR_GITHUB_USERNAME/vcf-to-db-core
+module github.com/vr-ski/vcf-to-db-core
 
 go 1.24.0

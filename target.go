@@ -1,33 +1,43 @@
 package core
 
-import (
-	"context"
-	"io"
-)
+import "context"
 
-// SchemaManager provisions the target database using the supplied schema.
+// SchemaManager provisions the target database.
 //
-// Recreate must create a fresh database and schema, replacing any existing
-// target database. Implementations are responsible for database-specific
-// lifecycle operations.
+// Recreate replaces the existing target database and creates a fresh
+// schema. Implementations must handle database-specific lifecycle
+// operations.
 type SchemaManager interface {
 	Recreate(ctx context.Context, schema Schema) error
 }
 
-// RecordWriter writes batches of records into a specified target table.
+// RecordWriter inserts a record into a target table.
 //
-// Implementations must honor context cancellation where practical.
-// Database-specific transaction and conflict behavior belongs to the adapter.
+// Insert returns generated column values in the returned Record,
+// keyed by their target column names. Values explicitly supplied
+// by the caller may also be returned.
+//
+// An error means the record was not successfully inserted.
 type RecordWriter interface {
-	WriteBatch(ctx context.Context, table string, records []Record) error
+	Insert(ctx context.Context, table string, record Record) (Record, error)
+}
+
+// Transaction represents an atomic sequence of database operations.
+//
+// All operations performed through this interface belong to the
+// same transaction. Commit makes them permanent. Rollback discards
+// them.
+//
+// Rollback must be safe to call after Commit or a previous Rollback.
+type Transaction interface {
+	RecordWriter
+	Commit(ctx context.Context) error
+	Rollback(ctx context.Context) error
 }
 
 // Target represents a database target.
-//
-// It combines schema provisioning and record writing while keeping
-// those responsibilities independently implementable and testable.
 type Target interface {
 	SchemaManager
-	RecordWriter
-	io.Closer
+	Begin(ctx context.Context) (Transaction, error)
+	Close() error
 }

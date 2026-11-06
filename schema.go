@@ -16,10 +16,22 @@ type Table struct {
 
 // Column describes a table column.
 type Column struct {
-	Name     string
-	Type     DataType
-	Nullable bool
+	Name       string
+	Type       DataType
+	Nullable   bool
+	Generation GenerationStrategy
 }
+
+// GenerationStrategy describes how a column value is generated.
+type GenerationStrategy string
+
+const (
+	// GenerationNone means the value must be supplied by the ETL process.
+	GenerationNone GenerationStrategy = ""
+
+	// GenerationAuto means the target database generates the value.
+	GenerationAuto GenerationStrategy = "auto"
+)
 
 // DataType identifies a database-independent logical data type.
 type DataType string
@@ -35,7 +47,7 @@ const (
 
 // ForeignKey describes a relationship between two tables.
 type ForeignKey struct {
-	Columns          []string
-	ReferencedTable  string
+	Columns           []string
+	ReferencedTable   string
 	ReferencedColumns []string
 }
