@@ -48,4 +48,12 @@ type FieldMapping struct {
 	SourceField string
 	Transform   string
 	Default     *Value
+    Occurrence  int
 }
+
+// Occurrence selects a value when the source field contains repeated values.
+//
+// -1 means all values (reserved for collection expansion).
+//  0 means the first value.
+//  1 means the second value, and so on.
+Occurrence int
