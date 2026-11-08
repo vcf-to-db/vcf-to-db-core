@@ -28,7 +28,8 @@ type RecordWriter interface {
 // same transaction. Commit makes them permanent. Rollback discards
 // them.
 //
-// Rollback must be safe to call after Commit or a previous Rollback.
+// Rollback discards the transaction's changes.
+// It must be called only while the transaction is active.
 type Transaction interface {
 	RecordWriter
 	Commit(ctx context.Context) error
