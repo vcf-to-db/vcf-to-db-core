@@ -152,6 +152,11 @@ func ValidateMapping(mapping Mapping, schema Schema) error {
 					ErrInvalidMapping, tableMapping.TargetTable)
 			}
 
+			if field.Occurrence < 0 {
+				return fmt.Errorf("%w: occurrence cannot be negative for field %q",
+					ErrInvalidMapping, field.SourceField)
+			}
+
 			if strings.TrimSpace(field.TargetField) == "" {
 				return fmt.Errorf("%w: target field cannot be empty in table %q",
 					ErrInvalidMapping, tableMapping.TargetTable)

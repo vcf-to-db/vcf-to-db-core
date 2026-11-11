@@ -627,3 +627,40 @@ func TestValidateMappingRequiredColumns(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateMappingRejectsNegativeOccurrence(t *testing.T) {
+	schema := Schema{
+		Tables: []Table{
+			{
+				Name: "contacts",
+				Columns: []Column{
+					{
+						Name:     "email",
+						Type:     DataTypeString,
+						Nullable: true,
+					},
+				},
+			},
+		},
+	}
+
+	mapping := Mapping{
+		Tables: []TableMapping{
+			{
+				TargetTable: "contacts",
+				Fields: []FieldMapping{
+					{
+						SourceField: "EMAIL",
+						TargetField: "email",
+						Occurrence:  -1,
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateMapping(mapping, schema)
+	if !errors.Is(err, ErrInvalidMapping) {
+		t.Fatalf("expected ErrInvalidMapping, got %v", err)
+	}
+}

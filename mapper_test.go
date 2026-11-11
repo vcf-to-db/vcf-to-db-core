@@ -2,11 +2,13 @@ package core
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 )
 
 func TestMapRecord(t *testing.T) {
 	defaultValue := Value("Unknown")
+	nullValue := Value(nil)
 
 	tests := []struct {
 		name       string
@@ -61,7 +63,7 @@ func TestMapRecord(t *testing.T) {
 				Fields: []FieldMapping{{
 					SourceField: "FN",
 					TargetField: "name",
-					Default:     func() *Value { v := Value(nil); return &v }(),
+					Default:     &nullValue,
 				}},
 			}}},
 			want: []MappedRow{{
@@ -70,8 +72,10 @@ func TestMapRecord(t *testing.T) {
 			}},
 		},
 		{
-			name:   "applies transformation",
-			record: Record{"FN": "alice"},
+			name: "applies transformation",
+			record: Record{
+				"FN": "alice",
+			},
 			mapping: Mapping{Tables: []TableMapping{{
 				TargetTable: "contacts",
 				Fields: []FieldMapping{{
@@ -91,7 +95,113 @@ func TestMapRecord(t *testing.T) {
 			}},
 		},
 		{
-			name:   "missing source without default",
+			name: "maps first occurrence",
+			record: Record{
+				"EMAIL": []Value{"first@example.com", "second@example.com"},
+			},
+			mapping: Mapping{Tables: []TableMapping{{
+				TargetTable: "contacts",
+				Fields: []FieldMapping{{
+					SourceField: "EMAIL",
+					TargetField: "email",
+					Occurrence:  0,
+				}},
+			}}},
+			want: []MappedRow{{
+				Table:  "contacts",
+				Record: Record{"email": "first@example.com"},
+			}},
+		},
+		{
+			name: "maps second occurrence",
+			record: Record{
+				"EMAIL": []Value{"first@example.com", "second@example.com"},
+			},
+			mapping: Mapping{Tables: []TableMapping{{
+				TargetTable: "contacts",
+				Fields: []FieldMapping{{
+					SourceField: "EMAIL",
+					TargetField: "email",
+					Occurrence:  1,
+				}},
+			}}},
+			want: []MappedRow{{
+				Table:  "contacts",
+				Record: Record{"email": "second@example.com"},
+			}},
+		},
+		{
+			name: "uses default when occurrence is out of range",
+			record: Record{
+				"EMAIL": []Value{"first@example.com"},
+			},
+			mapping: Mapping{Tables: []TableMapping{{
+				TargetTable: "contacts",
+				Fields: []FieldMapping{{
+					SourceField: "EMAIL",
+					TargetField: "email",
+					Occurrence:  1,
+					Default:     &defaultValue,
+				}},
+			}}},
+			want: []MappedRow{{
+				Table:  "contacts",
+				Record: Record{"email": "Unknown"},
+			}},
+		},
+		{
+			name: "errors when occurrence is out of range without default",
+			record: Record{
+				"EMAIL": []Value{"first@example.com"},
+			},
+			mapping: Mapping{Tables: []TableMapping{{
+				TargetTable: "contacts",
+				Fields: []FieldMapping{{
+					SourceField: "EMAIL",
+					TargetField: "email",
+					Occurrence:  1,
+				}},
+			}}},
+			wantErr: ErrInvalidRecord,
+		},
+		{
+			name: "maps scalar value at occurrence zero",
+			record: Record{
+				"EMAIL": "first@example.com",
+			},
+			mapping: Mapping{Tables: []TableMapping{{
+				TargetTable: "contacts",
+				Fields: []FieldMapping{{
+					SourceField: "EMAIL",
+					TargetField: "email",
+				}},
+			}}},
+			want: []MappedRow{{
+				Table:  "contacts",
+				Record: Record{"email": "first@example.com"},
+			}},
+		},
+		{
+			name: "uses default for scalar value at nonzero occurrence",
+			record: Record{
+				"EMAIL": "first@example.com",
+			},
+			mapping: Mapping{Tables: []TableMapping{{
+				TargetTable: "contacts",
+				Fields: []FieldMapping{{
+					SourceField: "EMAIL",
+					TargetField: "email",
+					Occurrence:  1,
+					Default:     &defaultValue,
+				}},
+			}}},
+			want: []MappedRow{{
+				Table:  "contacts",
+				Record: Record{"email": "Unknown"},
+			}},
+		},
+		{
+			name:   "errors for missing source without default",
 			record: Record{},
 			mapping: Mapping{Tables: []TableMapping{{
 				TargetTable: "contacts",
@@ -103,8 +213,10 @@ func TestMapRecord(t *testing.T) {
 			wantErr: ErrInvalidRecord,
 		},
 		{
-			name:   "unknown transformation",
-			record: Record{"FN": "Alice"},
+			name: "errors for unknown transformation",
+			record: Record{
+				"FN": "Alice",
+			},
 			mapping: Mapping{Tables: []TableMapping{{
 				TargetTable: "contacts",
 				Fields: []FieldMapping{{
@@ -116,8 +228,10 @@ func TestMapRecord(t *testing.T) {
 			wantErr: ErrInvalidMapping,
 		},
 		{
-			name:   "transformation error",
-			record: Record{"FN": "Alice"},
+			name: "errors when transformation fails",
+			record: Record{
+				"FN": "Alice",
+			},
 			mapping: Mapping{Tables: []TableMapping{{
 				TargetTable: "contacts",
 				Fields: []FieldMapping{{
@@ -150,28 +264,8 @@ func TestMapRecord(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if len(got) != len(tt.want) {
-				t.Fatalf("expected %d rows, got %d", len(tt.want), len(got))
-			}
-
-			for i := range got {
-				if got[i].Table != tt.want[i].Table {
-					t.Errorf("row %d: expected table %q, got %q",
-						i, tt.want[i].Table, got[i].Table)
-				}
-
-				if len(got[i].Record) != len(tt.want[i].Record) {
-					t.Errorf("row %d: expected %d fields, got %d",
-						i, len(tt.want[i].Record), len(got[i].Record))
-					continue
-				}
-
-				for key, wantValue := range tt.want[i].Record {
-					if gotValue, exists := got[i].Record[key]; !exists || gotValue != wantValue {
-						t.Errorf("row %d field %q: expected %#v, got %#v",
-							i, key, wantValue, gotValue)
-					}
-				}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("expected %#v, got %#v", tt.want, got)
 			}
 		})
 	}
