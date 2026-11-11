@@ -1,4 +1,3 @@
-
 package core
 
 import (
@@ -9,10 +8,10 @@ import (
 )
 
 type importerTestTransaction struct {
-	inserted       []MappedRow
+	inserted        []MappedRow
 	returnedByTable map[string]Record
-	failTable      string
-	insertErr      error
+	failTable       string
+	insertErr       error
 }
 
 func (tx *importerTestTransaction) Insert(
@@ -125,8 +124,8 @@ func TestImportRecordMissingParentKey(t *testing.T) {
 	mapping := Mapping{
 		Tables: []TableMapping{
 			{
-				TargetTable:      "contacts",
-				Fields:           []FieldMapping{{SourceField: "FN", TargetField: "name"}},
+				TargetTable: "contacts",
+				Fields:      []FieldMapping{{SourceField: "FN", TargetField: "name"}},
 			},
 			{
 				TargetTable:      "emails",
@@ -264,4 +263,3 @@ func TestImportRecordStopsAfterInsertFailure(t *testing.T) {
 		t.Fatalf("unexpected insert order: %#v", tx.inserted)
 	}
 }
-
