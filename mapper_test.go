@@ -270,3 +270,135 @@ func TestMapRecord(t *testing.T) {
 		})
 	}
 }
+
+func TestMapRecordCollection(t *testing.T) {
+	tests := []struct {
+		name    string
+		record  Record
+		want    []MappedRow
+		wantErr error
+	}{
+		{
+			name: "maps each collection item",
+			record: Record{
+				"EMAILS": []Value{
+					map[string]Value{"VALUE": "alice@example.com"},
+					map[string]Value{"VALUE": "alice.work@example.com"},
+				},
+			},
+			want: []MappedRow{
+				{
+					Table:  "emails",
+					Record: Record{"address": "alice@example.com"},
+				},
+				{
+					Table:  "emails",
+					Record: Record{"address": "alice.work@example.com"},
+				},
+			},
+		},
+		{
+			name: "empty collection produces no rows",
+			record: Record{
+				"EMAILS": []Value{},
+			},
+			want: []MappedRow{},
+		},
+		{
+			name: "missing collection",
+			record: Record{},
+			wantErr: ErrInvalidRecord,
+		},
+		{
+			name: "collection is not repeated",
+			record: Record{
+				"EMAILS": "alice@example.com",
+			},
+			wantErr: ErrInvalidRecord,
+		},
+		{
+			name: "collection item is not structured",
+			record: Record{
+				"EMAILS": []Value{"alice@example.com"},
+			},
+			wantErr: ErrInvalidRecord,
+		},
+		{
+			name: "missing item field uses default",
+			record: Record{
+				"EMAILS": []Value{
+					map[string]Value{},
+				},
+			},
+			want: []MappedRow{
+				{
+					Table:  "emails",
+					Record: Record{"address": "unknown"},
+				},
+			},
+		},
+	}
+
+	defaultValue := Value("unknown")
+
+	mapping := Mapping{
+		Tables: []TableMapping{
+			{
+				TargetTable:     "emails",
+				SourceCollection: "EMAILS",
+				Fields: []FieldMapping{
+					{
+						SourceField: "VALUE",
+						TargetField: "address",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testMapping := mapping
+			if tt.name == "missing item field uses default" {
+				testMapping.Tables[0].Fields[0].Default = &defaultValue
+			}
+
+			got, err := MapRecord(tt.record, testMapping, nil)
+
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("expected error %v, got %v", tt.wantErr, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(got) != len(tt.want) {
+				t.Fatalf("expected %d rows, got %d", len(tt.want), len(got))
+			}
+
+			for i := range tt.want {
+				if got[i].Table != tt.want[i].Table {
+					t.Errorf("row %d: expected table %q, got %q",
+						i, tt.want[i].Table, got[i].Table)
+				}
+
+				if len(got[i].Record) != len(tt.want[i].Record) {
+					t.Errorf("row %d: expected record %v, got %v",
+						i, tt.want[i].Record, got[i].Record)
+					continue
+				}
+
+				for key, wantValue := range tt.want[i].Record {
+					if gotValue := got[i].Record[key]; gotValue != wantValue {
+						t.Errorf("row %d field %q: expected %v, got %v",
+							i, key, wantValue, gotValue)
+					}
+				}
+			}
+		})
+	}
+}
