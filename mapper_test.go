@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -410,7 +411,7 @@ func TestMapRecordRootAndCollectionMappings(t *testing.T) {
 				},
 			},
 			{
-				TargetTable:     "emails",
+				TargetTable:      "emails",
 				SourceCollection: "EMAIL",
 				Fields: []FieldMapping{
 					{
