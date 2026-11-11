@@ -337,7 +337,7 @@ func TestMapRecordCollection(t *testing.T) {
 			mapping := Mapping{
 				Tables: []TableMapping{
 					{
-						TargetTable:     "emails",
+						TargetTable:      "emails",
 						SourceCollection: "EMAILS",
 						Fields: []FieldMapping{
 							{
@@ -386,5 +386,94 @@ func TestMapRecordCollection(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMapRecordRootAndCollectionMappings(t *testing.T) {
+	record := Record{
+		"FN": "Alice",
+		"EMAIL": []Value{
+			map[string]Value{"VALUE": "alice@example.com"},
+			map[string]Value{"VALUE": "alice.work@example.com"},
+		},
+	}
+
+	mapping := Mapping{
+		Tables: []TableMapping{
+			{
+				TargetTable: "contacts",
+				Fields: []FieldMapping{
+					{
+						SourceField: "FN",
+						TargetField: "name",
+					},
+				},
+			},
+			{
+				TargetTable:     "emails",
+				SourceCollection: "EMAIL",
+				Fields: []FieldMapping{
+					{
+						SourceField: "VALUE",
+						TargetField: "address",
+						Transform:   "uppercase",
+					},
+				},
+			},
+		},
+	}
+
+	transforms := map[string]TransformFunc{
+		"uppercase": func(value Value) (Value, error) {
+			text, ok := value.(string)
+			if !ok {
+				return nil, ErrInvalidRecord
+			}
+			return strings.ToUpper(text), nil
+		},
+	}
+
+	want := []MappedRow{
+		{
+			Table:  "contacts",
+			Record: Record{"name": "Alice"},
+		},
+		{
+			Table:  "emails",
+			Record: Record{"address": "ALICE@EXAMPLE.COM"},
+		},
+		{
+			Table:  "emails",
+			Record: Record{"address": "ALICE.WORK@EXAMPLE.COM"},
+		},
+	}
+
+	got, err := MapRecord(record, mapping, transforms)
+	if err != nil {
+		t.Fatalf("MapRecord() unexpected error: %v", err)
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("expected %d rows, got %d", len(want), len(got))
+	}
+
+	for i := range want {
+		if got[i].Table != want[i].Table {
+			t.Errorf("row %d: expected table %q, got %q",
+				i, want[i].Table, got[i].Table)
+		}
+
+		if len(got[i].Record) != len(want[i].Record) {
+			t.Errorf("row %d: expected record %v, got %v",
+				i, want[i].Record, got[i].Record)
+			continue
+		}
+
+		for key, wantValue := range want[i].Record {
+			if gotValue := got[i].Record[key]; gotValue != wantValue {
+				t.Errorf("row %d field %q: expected %v, got %v",
+					i, key, wantValue, gotValue)
+			}
+		}
 	}
 }
