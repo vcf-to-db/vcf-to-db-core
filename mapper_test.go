@@ -272,11 +272,14 @@ func TestMapRecord(t *testing.T) {
 }
 
 func TestMapRecordCollection(t *testing.T) {
+	defaultValue := Value("unknown")
+
 	tests := []struct {
-		name    string
-		record  Record
-		want    []MappedRow
-		wantErr error
+		name         string
+		record       Record
+		defaultValue *Value
+		want         []MappedRow
+		wantErr      error
 	}{
 		{
 			name: "maps each collection item",
@@ -287,14 +290,8 @@ func TestMapRecordCollection(t *testing.T) {
 				},
 			},
 			want: []MappedRow{
-				{
-					Table:  "emails",
-					Record: Record{"address": "alice@example.com"},
-				},
-				{
-					Table:  "emails",
-					Record: Record{"address": "alice.work@example.com"},
-				},
+				{Table: "emails", Record: Record{"address": "alice@example.com"}},
+				{Table: "emails", Record: Record{"address": "alice.work@example.com"}},
 			},
 		},
 		{
@@ -305,8 +302,8 @@ func TestMapRecordCollection(t *testing.T) {
 			want: []MappedRow{},
 		},
 		{
-			name: "missing collection",
-			record: Record{},
+			name:    "missing collection",
+			record:  Record{},
 			wantErr: ErrInvalidRecord,
 		},
 		{
@@ -326,44 +323,34 @@ func TestMapRecordCollection(t *testing.T) {
 		{
 			name: "missing item field uses default",
 			record: Record{
-				"EMAILS": []Value{
-					map[string]Value{},
-				},
+				"EMAILS": []Value{map[string]Value{}},
 			},
+			defaultValue: &defaultValue,
 			want: []MappedRow{
-				{
-					Table:  "emails",
-					Record: Record{"address": "unknown"},
-				},
-			},
-		},
-	}
-
-	defaultValue := Value("unknown")
-
-	mapping := Mapping{
-		Tables: []TableMapping{
-			{
-				TargetTable:     "emails",
-				SourceCollection: "EMAILS",
-				Fields: []FieldMapping{
-					{
-						SourceField: "VALUE",
-						TargetField: "address",
-					},
-				},
+				{Table: "emails", Record: Record{"address": "unknown"}},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testMapping := mapping
-			if tt.name == "missing item field uses default" {
-				testMapping.Tables[0].Fields[0].Default = &defaultValue
+			mapping := Mapping{
+				Tables: []TableMapping{
+					{
+						TargetTable:     "emails",
+						SourceCollection: "EMAILS",
+						Fields: []FieldMapping{
+							{
+								SourceField: "VALUE",
+								TargetField: "address",
+								Default:     tt.defaultValue,
+							},
+						},
+					},
+				},
 			}
 
-			got, err := MapRecord(tt.record, testMapping, nil)
+			got, err := MapRecord(tt.record, mapping, nil)
 
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
@@ -386,17 +373,16 @@ func TestMapRecordCollection(t *testing.T) {
 						i, tt.want[i].Table, got[i].Table)
 				}
 
-				if len(got[i].Record) != len(tt.want[i].Record) {
-					t.Errorf("row %d: expected record %v, got %v",
-						i, tt.want[i].Record, got[i].Record)
-					continue
-				}
-
 				for key, wantValue := range tt.want[i].Record {
 					if gotValue := got[i].Record[key]; gotValue != wantValue {
 						t.Errorf("row %d field %q: expected %v, got %v",
 							i, key, wantValue, gotValue)
 					}
+				}
+
+				if len(got[i].Record) != len(tt.want[i].Record) {
+					t.Errorf("row %d: expected record %v, got %v",
+						i, tt.want[i].Record, got[i].Record)
 				}
 			}
 		})
